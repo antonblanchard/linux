@@ -455,6 +455,29 @@ static inline ulong kvmppc_get_pc(struct kvm_vcpu *vcpu)
 	return vcpu->arch.pc;
 }
 
+static inline bool kvmppc_need_byteswap(struct kvm_vcpu *vcpu)
+{
+	return vcpu->arch.shared->msr & MSR_LE;
+}
+
+static inline bool kvmppc_is_bigendian(struct kvm_vcpu *vcpu)
+{
+	return !kvmppc_need_byteswap(vcpu);
+}
+
+static inline int kvmppc_ld32(struct kvm_vcpu *vcpu, ulong *eaddr,
+			      u32 *ptr, bool data)
+{
+	int ret;
+
+	ret = kvmppc_ld(vcpu, eaddr, sizeof(u32), ptr, data);
+
+	if (kvmppc_need_byteswap(vcpu))
+		*ptr = swab32(*ptr);
+
+	return ret;
+}
+
 static inline u32 kvmppc_get_last_inst(struct kvm_vcpu *vcpu)
 {
 	ulong pc = kvmppc_get_pc(vcpu);
@@ -462,7 +485,7 @@ static inline u32 kvmppc_get_last_inst(struct kvm_vcpu *vcpu)
 	/* Load the instruction manually if it failed to do so in the
 	 * exit path */
 	if (vcpu->arch.last_inst == KVM_INST_FETCH_FAILED)
-		kvmppc_ld(vcpu, &pc, sizeof(u32), &vcpu->arch.last_inst, false);
+		kvmppc_ld32(vcpu, &pc, &vcpu->arch.last_inst, false);
 
 	return vcpu->arch.last_inst;
 }
@@ -479,7 +502,7 @@ static inline u32 kvmppc_get_last_sc(struct kvm_vcpu *vcpu)
 	/* Load the instruction manually if it failed to do so in the
 	 * exit path */
 	if (vcpu->arch.last_inst == KVM_INST_FETCH_FAILED)
-		kvmppc_ld(vcpu, &pc, sizeof(u32), &vcpu->arch.last_inst, false);
+		kvmppc_ld32(vcpu, &pc, &vcpu->arch.last_inst, false);
 
 	return vcpu->arch.last_inst;
 }
