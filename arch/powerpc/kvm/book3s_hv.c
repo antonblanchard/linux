@@ -1731,7 +1731,7 @@ static int kvmppc_vcpu_run_hv(struct kvm_run *run, struct kvm_vcpu *vcpu)
 				vcpu->arch.fault_dar, vcpu->arch.fault_dsisr);
 			srcu_read_unlock(&vcpu->kvm->srcu, srcu_idx);
 		}
-	} while (r == RESUME_GUEST);
+	} while (is_kvmppc_resume_guest(r));
 
  out:
 	vcpu->arch.state = KVMPPC_VCPU_NOTREADY;
