@@ -1541,7 +1541,7 @@ static void kvmppc_run_core(struct kvmppc_vcore *vc)
 	vc->vcore_state = VCORE_INACTIVE;
 	list_for_each_entry_safe(vcpu, vnext, &vc->runnable_threads,
 				 arch.run_list) {
-		if (vcpu->arch.ret != RESUME_GUEST) {
+		if (!is_kvmppc_resume_guest(vcpu->arch.ret)) {
 			kvmppc_remove_runnable(vc, vcpu);
 			wake_up(&vcpu->arch.cpu_run);
 		}
