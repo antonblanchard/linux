@@ -1530,7 +1530,7 @@ static void kvmppc_run_core(struct kvmppc_vcore *vc)
 		vcpu->arch.trap = 0;
 
 		if (vcpu->arch.ceded) {
-			if (ret != RESUME_GUEST)
+			if (!is_kvmppc_resume_guest(ret))
 				kvmppc_end_cede(vcpu);
 			else
 				kvmppc_set_timer(vcpu);
