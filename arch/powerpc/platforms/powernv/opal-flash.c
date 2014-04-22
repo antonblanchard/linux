@@ -96,9 +96,9 @@ struct image_data_t {
 
 /* Candidate image header */
 struct image_header_t {
-	uint16_t	magic;
-	uint16_t	version;
-	uint32_t	size;
+	__be16		magic;
+	__be16		version;
+	__be32		size;
 };
 
 struct validate_flash_t {

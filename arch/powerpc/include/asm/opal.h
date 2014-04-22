@@ -864,7 +864,7 @@ int64_t opal_write_elog(uint64_t buffer, uint64_t size, uint64_t offset);
 int64_t opal_send_ack_elog(uint64_t log_id);
 void opal_resend_pending_logs(void);
 
-int64_t opal_validate_flash(uint64_t buffer, uint32_t *size, uint32_t *result);
+int64_t opal_validate_flash(uint64_t buffer, __be32 *size, __be32 *result);
 int64_t opal_manage_flash(uint8_t op);
 int64_t opal_update_flash(uint64_t blk_list);
 int64_t opal_dump_init(uint8_t dump_type);
