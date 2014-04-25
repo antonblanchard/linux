@@ -267,7 +267,7 @@ static int ioda_eeh_get_state(struct eeh_pe *pe)
 {
 	s64 ret = 0;
 	u8 fstate;
-	u16 pcierr;
+	__be16 pcierr;
 	u32 pe_no;
 	int result;
 	struct pci_controller *hose = pe->phb;
@@ -316,7 +316,7 @@ static int ioda_eeh_get_state(struct eeh_pe *pe)
 		result = 0;
 		result &= ~EEH_STATE_RESET_ACTIVE;
 
-		if (pcierr != OPAL_EEH_PHB_ERROR) {
+		if (be16_to_cpu(pcierr) != OPAL_EEH_PHB_ERROR) {
 			result |= EEH_STATE_MMIO_ACTIVE;
 			result |= EEH_STATE_DMA_ACTIVE;
 			result |= EEH_STATE_MMIO_ENABLED;
@@ -710,7 +710,7 @@ static void ioda_eeh_hub_diag(struct pci_controller *hose)
 		return;
 	}
 
-	switch (data->type) {
+	switch (__be16_to_cpu(data->type)) {
 	case OPAL_P7IOC_DIAG_TYPE_RGC:
 		pr_info("P7IOC diag-data for RGC\n\n");
 		ioda_eeh_hub_diag_common(data);
@@ -784,6 +784,8 @@ static int ioda_eeh_next_error(struct eeh_pe **pe)
 	struct pci_controller *hose;
 	struct pnv_phb *phb;
 	struct eeh_pe *phb_pe;
+	__be64 __frozen_pe_no;
+	__be16 __err_type, __severity;
 	u64 frozen_pe_no;
 	u16 err_type, severity;
 	long rc;
@@ -809,7 +811,11 @@ static int ioda_eeh_next_error(struct eeh_pe **pe)
 			continue;
 
 		rc = opal_pci_next_error(phb->opal_id,
-				&frozen_pe_no, &err_type, &severity);
+				&__frozen_pe_no, &__err_type, &__severity);
+
+		frozen_pe_no = be64_to_cpu(__frozen_pe_no);
+		err_type = be16_to_cpu(__err_type);
+		severity = be16_to_cpu(__severity);
 
 		/* If OPAL API returns error, we needn't proceed */
 		if (rc != OPAL_SUCCESS) {
