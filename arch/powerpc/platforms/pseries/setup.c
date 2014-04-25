@@ -810,4 +810,5 @@ define_machine(pseries) {
 #ifdef CONFIG_KEXEC
 	.machine_kexec          = pSeries_machine_kexec,
 #endif
+	.memory_block_size	= pseries_memory_block_size,
 };
