@@ -43,6 +43,7 @@
 #include <asm/trace.h>
 #include <asm/firmware.h>
 #include <asm/plpar_wrappers.h>
+#include <asm/fadump.h>
 
 #include "pseries.h"
 
@@ -247,8 +248,12 @@ static void pSeries_lpar_hptab_clear(void)
 	}
 
 #ifdef __LITTLE_ENDIAN__
-	/* Reset exceptions to big endian */
-	if (firmware_has_feature(FW_FEATURE_SET_MODE)) {
+	/*
+	 * Reset exceptions to big endian
+	 * During fadump kernel boot, we dont need to reset exception to big endian
+	 * as we have already booted into LE kernel.
+	 */
+	if (firmware_has_feature(FW_FEATURE_SET_MODE) && !is_fadump_active()) {
 		long rc;
 
 		rc = pseries_big_endian_exceptions();
