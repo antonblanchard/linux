@@ -98,7 +98,11 @@ static unsigned int local_entry_offset(const Elf64_Sym *sym)
 }
 #endif
 
+#ifdef CC_HAVE_MPROFILE_KERNEL
+#define MAX_STUB_INSNS	10
+#else
 #define MAX_STUB_INSNS	7
+#endif
 
 /* Like PPC32, we need little trampolines to do > 24-bit jumps (into
    the kernel itself).  But on PPC64, these need to be used for every
@@ -138,6 +142,25 @@ static u32 ppc64_stub_insns[] = {
 	0x7d8903a6,			/* mtctr   r12 */
 	0x4e800420			/* bctr */
 };
+
+#if defined(CC_HAVE_MPROFILE_KERNEL)
+static u32 ppc64_mcount_stub_insns[] = {
+	0x3d620000,			/* addis   r11,r2, <high> */
+	0x396b0000,			/* addi    r11,r11, <low> */
+	0xf8220001|STACK_FRAME_MIN_SIZE, /* stdu    r1,STACK_FRAME_MIN_SIZE(r1) */
+	/* Save current r2 value in magic place on the stack. */
+	0xf8410000|R2_STACK_OFFSET,	/* std     r2,R2_STACK_OFFSET(r1) */
+	0xe98b0000,			/* ld      r12,0(r11) */
+#if !defined(_CALL_ELF) || _CALL_ELF != 2
+	/* Set up new r2 from function descriptor */
+	0xe84b0008,			/* ld      r2,8(r11) */
+#endif
+	0x7d8903a6,			/* mtctr   r12 */
+	0x4e800421,			/* bctrl */
+	0x38210000|STACK_FRAME_MIN_SIZE, /* addi    r1,r1,STACK_FRAME_MIN_SIZE */
+	0x4e800020			/* blr */
+};
+#endif
 
 #ifdef CONFIG_DYNAMIC_FTRACE
 
@@ -424,11 +447,13 @@ static inline unsigned long my_r2(Elf64_Shdr *sechdrs, struct module *me)
 static inline int create_stub(Elf64_Shdr *sechdrs,
 			      struct ppc64_stub_entry *entry,
 			      unsigned long addr,
+			      u32 *stub_insns,
+			      size_t stub_size,
 			      struct module *me)
 {
 	long reladdr;
 
-	memcpy(entry->jump, ppc64_stub_insns, sizeof(ppc64_stub_insns));
+	memcpy(entry->jump, stub_insns, stub_size);
 
 	/* Stub uses address relative to r2. */
 	reladdr = (unsigned long)entry +
@@ -451,6 +476,8 @@ static inline int create_stub(Elf64_Shdr *sechdrs,
    stub to set up the TOC ptr (r2) for the function. */
 static unsigned long stub_for_addr(Elf64_Shdr *sechdrs,
 				   unsigned long addr,
+				   u32 *stub_insns,
+				   size_t stub_size,
 				   struct module *me)
 {
 	struct ppc64_stub_entry *stubs;
@@ -467,7 +494,7 @@ static unsigned long stub_for_addr(Elf64_Shdr *sechdrs,
 			return (unsigned long)&stubs[i];
 	}
 
-	if (!create_stub(sechdrs, &stubs[i], addr, me))
+	if (!create_stub(sechdrs, &stubs[i], addr, stub_insns, stub_size, me))
 		return 0;
 
 	return (unsigned long)&stubs[i];
@@ -485,6 +512,31 @@ static int restore_r2(u32 *instruction, struct module *me)
 	/* ld r2,R2_STACK_OFFSET(r1) */
 	*instruction = 0xe8410000 | R2_STACK_OFFSET;
 	return 1;
+}
+
+static unsigned long do_trampoline(const char *sym_name, Elf64_Shdr *sechdrs,
+				   unsigned long value, u32 *r2_restore_ptr,
+				   struct module *me)
+{
+#ifdef CC_HAVE_MPROFILE_KERNEL
+	if (!strcmp(sym_name, "_mcount")) {
+		value = stub_for_addr(sechdrs, value, ppc64_mcount_stub_insns,
+				      sizeof(ppc64_mcount_stub_insns), me);
+		if (!value)
+			goto out;
+	} else
+#endif
+	{
+		value = stub_for_addr(sechdrs, value, ppc64_stub_insns,
+				      sizeof(ppc64_stub_insns), me);
+		if (!value)
+			goto out;
+		if (!restore_r2(r2_restore_ptr, me))
+			value = 0;
+	}
+
+out:
+	return value;
 }
 
 int apply_relocate_add(Elf64_Shdr *sechdrs,
@@ -603,11 +655,11 @@ int apply_relocate_add(Elf64_Shdr *sechdrs,
 			/* FIXME: Handle weak symbols here --RR */
 			if (sym->st_shndx == SHN_UNDEF) {
 				/* External: go via stub */
-				value = stub_for_addr(sechdrs, value, me);
+				value = do_trampoline(strtab + sym->st_name,
+						      sechdrs, value,
+						      (u32 *)location + 1, me);
 				if (!value)
 					return -ENOENT;
-				if (!restore_r2((u32 *)location + 1, me))
-					return -ENOEXEC;
 			} else
 				value += local_entry_offset(sym);
 
@@ -667,6 +719,8 @@ int apply_relocate_add(Elf64_Shdr *sechdrs,
 	me->arch.toc = my_r2(sechdrs, me);
 	me->arch.tramp = stub_for_addr(sechdrs,
 				       (unsigned long)ftrace_caller,
+				       ppc64_stub_insns,
+				       sizeof(ppc64_stub_insns),
 				       me);
 #endif
 

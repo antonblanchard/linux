@@ -1158,87 +1158,158 @@ _GLOBAL(enter_prom)
         blr
 
 #ifdef CONFIG_FUNCTION_TRACER
+
+_GLOBAL(ftrace_stub)
+	blr
+
 #ifdef CONFIG_DYNAMIC_FTRACE
 _GLOBAL(mcount)
 _GLOBAL(_mcount)
+#ifdef CC_HAVE_MPROFILE_KERNEL
+	/*
+	 * At this point we have the calling function's LR in r0.
+	 * We need to restore the LR and branch back to where we
+	 * came from. Since we are past the global entry point we
+	 * are free to use r12.
+	 */
+	mr	r12,r0
+	mflr	r0
+	mtctr	r0
+	mr	r0,r12
+	mtlr	r0
+	bctr
+#else
 	blr
+#endif
 
-_GLOBAL_TOC(ftrace_caller)
-	/* Taken from output of objdump from lib64/glibc */
+_GLOBAL(ftrace_caller)
+#else
+_GLOBAL(_mcount)
+#endif
+#ifdef CC_HAVE_MPROFILE_KERNEL
+	/* Create a stack frame for the caller */
+	std	r0,16(r1)
+	stdu	r1,-STACK_FRAME_OVERHEAD(r1)
+
+	/* Save the function parameters */
+	std	r3,STK_PARAM(R3)(r1)
+	std	r4,STK_PARAM(R4)(r1)
+	std	r5,STK_PARAM(R5)(r1)
+	std	r6,STK_PARAM(R6)(r1)
+	std	r7,STK_PARAM(R7)(r1)
+	std	r8,STK_PARAM(R8)(r1)
+	std	r9,STK_PARAM(R9)(r1)
+	std	r10,STK_PARAM(R10)(r1)
+
+	/* Save the TOC */
+	std	r2,STK_GOT(r1)
+#else
+	/* Grab the return address out of the callers stack frame */
+	ld	r12,0(r1)
+	ld	r0,16(r12)
+#endif
+	/* Save the LR */
 	mflr	r3
-	ld	r11, 0(r1)
-	stdu	r1, -112(r1)
-	std	r3, 128(r1)
-	ld	r4, 16(r11)
-	subi	r3, r3, MCOUNT_INSN_SIZE
+	std	r3,16(r1)
+
+	/* Create a stack frame for us */
+	stdu	r1,-STACK_FRAME_OVERHEAD(r1)
+
+	subi	r3,r3,MCOUNT_INSN_SIZE
+	mr	r4,r0
+
+#if defined(_CALL_ELF) && _CALL_ELF == 2
+	/* We might be called from modules, so setup r2 */
+	ld	r2, PACATOC(r13)
+#endif
+
+#ifdef CONFIG_DYNAMIC_FTRACE
 .globl ftrace_call
 ftrace_call:
 	bl	ftrace_stub
+#else
+	LOAD_REG_ADDR(r12,ftrace_trace_function)
+	ld	r12,0(r12)
+#if !defined(_CALL_ELF) || _CALL_ELF != 2
+	ld	r12,0(r12)
+	ld	r2,8(r12)
+#endif
+
+	mtctr	r12
+	bctrl
 	nop
+#endif
+
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
+#ifdef CONFIG_DYNAMIC_FTRACE
 .globl ftrace_graph_call
 ftrace_graph_call:
 	b	ftrace_graph_stub
 _GLOBAL(ftrace_graph_stub)
-#endif
-	ld	r0, 128(r1)
-	mtlr	r0
-	addi	r1, r1, 112
-_GLOBAL(ftrace_stub)
-	blr
 #else
-_GLOBAL_TOC(_mcount)
-	/* Taken from output of objdump from lib64/glibc */
-	mflr	r3
-	ld	r11, 0(r1)
-	stdu	r1, -112(r1)
-	std	r3, 128(r1)
-	ld	r4, 16(r11)
-
-	subi	r3, r3, MCOUNT_INSN_SIZE
-	LOAD_REG_ADDR(r5,ftrace_trace_function)
-	ld	r5,0(r5)
-	ld	r5,0(r5)
-	mtctr	r5
-	bctrl
-	nop
-
-
-#ifdef CONFIG_FUNCTION_GRAPH_TRACER
 	b	ftrace_graph_caller
 #endif
-	ld	r0, 128(r1)
-	mtlr	r0
-	addi	r1, r1, 112
-_GLOBAL(ftrace_stub)
-	blr
+#endif
 
-#endif /* CONFIG_DYNAMIC_FTRACE */
+.Lmcount_exit:
+#ifdef CC_HAVE_MPROFILE_KERNEL
+	ld	r0,STACK_FRAME_OVERHEAD*2+16(r1)
+	mtlr	r0
+
+	ld	r0,STACK_FRAME_OVERHEAD+16(r1)
+	mtctr	r0
+
+	ld	r2,STACK_FRAME_OVERHEAD+STK_GOT(r1)
+
+	ld	r3,STACK_FRAME_OVERHEAD+STK_PARAM(R3)(r1)
+	ld	r4,STACK_FRAME_OVERHEAD+STK_PARAM(R4)(r1)
+	ld	r5,STACK_FRAME_OVERHEAD+STK_PARAM(R5)(r1)
+	ld	r6,STACK_FRAME_OVERHEAD+STK_PARAM(R6)(r1)
+	ld	r7,STACK_FRAME_OVERHEAD+STK_PARAM(R7)(r1)
+	ld	r8,STACK_FRAME_OVERHEAD+STK_PARAM(R8)(r1)
+	ld	r9,STACK_FRAME_OVERHEAD+STK_PARAM(R9)(r1)
+	ld	r10,STACK_FRAME_OVERHEAD+STK_PARAM(R10)(r1)
+
+	addi	r1,r1,STACK_FRAME_OVERHEAD*2
+
+	bctr
+#else
+	ld	r0,STACK_FRAME_OVERHEAD+16(r1)
+	mtlr	r0
+	addi	r1,r1,STACK_FRAME_OVERHEAD
+	blr
+#endif
 
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 _GLOBAL(ftrace_graph_caller)
-	/* load r4 with local address */
-	ld	r4, 128(r1)
-	subi	r4, r4, MCOUNT_INSN_SIZE
-
+#ifdef CC_HAVE_MPROFILE_KERNEL
+	ld	r3,STACK_FRAME_OVERHEAD*2+16(r1)
+#else
 	/* Grab the LR out of the caller stack frame */
-	ld	r11, 112(r1)
-	ld	r3, 16(r11)
+	ld	r12,STACK_FRAME_OVERHEAD(r1)
+	ld	r3,16(r12)
+#endif
+
+	ld	r4,STACK_FRAME_OVERHEAD+16(r1)
+	subi	r4,r4,MCOUNT_INSN_SIZE
 
 	bl	prepare_ftrace_return
-	nop
 
 	/*
 	 * prepare_ftrace_return gives us the address we divert to.
-	 * Change the LR in the callers stack frame to this.
+	 * Change the LR in the callers stack frame to this. We
+	 * don't need to do this currently on -mprofile-kernel style
+	 * profiling, but play it safe because gcc might get more
+	 * intelligent one day.
 	 */
-	ld	r11, 112(r1)
-	std	r3, 16(r11)
+#ifdef CC_HAVE_MPROFILE_KERNEL
+	std	r3,STACK_FRAME_OVERHEAD*2+16(r1)
+#else
+	ld	r12,STACK_FRAME_OVERHEAD(r1)
+	std	r3,16(r12)
+#endif
 
-	ld	r0, 128(r1)
-	mtlr	r0
-	addi	r1, r1, 112
-	blr
+	b	.Lmcount_exit
 
 _GLOBAL(return_to_handler)
 	/* need to save return values */
