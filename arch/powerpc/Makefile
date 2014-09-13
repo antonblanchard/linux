@@ -198,9 +198,15 @@ ifeq ($(CONFIG_6xx),y)
 KBUILD_CFLAGS		+= -mcpu=powerpc
 endif
 
-# Work around a gcc code-gen bug with -fno-omit-frame-pointer.
 ifeq ($(CONFIG_FUNCTION_TRACER),y)
+# Work around a gcc code-gen bug with -fno-omit-frame-pointer.
 KBUILD_CFLAGS		+= -mno-sched-epilog
+
+# -mprofile-kernel is broken in older versions of gcc.
+ifeq ($(shell $(CONFIG_SHELL) $(srctree)/arch/powerpc/test-mprofile-kernel.sh $(CC)), y)
+	KBUILD_CFLAGS += -mprofile-kernel -DCC_HAVE_MPROFILE_KERNEL
+	KBUILD_AFLAGS += -DCC_HAVE_MPROFILE_KERNEL
+endif
 endif
 
 cpu-as-$(CONFIG_4xx)		+= -Wa,-m405
