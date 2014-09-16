@@ -40,7 +40,7 @@ struct update_props_workarea {
 
 #define MIGRATION_SCOPE	(1)
 
-static int mobility_rtas_call(int token, char *buf, s32 scope)
+static int mobility_rtas_call(int token, __be32 *buf, s32 scope)
 {
 	int rc;
 
@@ -129,14 +129,14 @@ static int update_dt_property(struct device_node *dn, struct property **prop,
 
 static int update_dt_node(u32 phandle, s32 scope)
 {
-	struct update_props_workarea *upwa;
+	struct update_props_workarea upwa;
 	struct device_node *dn;
 	struct property *prop = NULL;
 	int i, rc, rtas_rc;
-	char *prop_data;
-	char *rtas_buf;
 	int update_properties_token;
+	char *prop_data;
 	u32 vd;
+	__be32 *rtas_buf;
 
 	update_properties_token = rtas_token("ibm,update-properties");
 	if (update_properties_token == RTAS_UNKNOWN_SERVICE)
@@ -152,16 +152,17 @@ static int update_dt_node(u32 phandle, s32 scope)
 		return -ENOENT;
 	}
 
-	upwa = (struct update_props_workarea *)&rtas_buf[0];
-	upwa->phandle = phandle;
-
+	*rtas_buf = cpu_to_be32(phandle);
 	do {
 		rtas_rc = mobility_rtas_call(update_properties_token, rtas_buf,
 					scope);
 		if (rtas_rc < 0)
 			break;
-
-		prop_data = rtas_buf + sizeof(*upwa);
+		upwa.phandle = be32_to_cpu(*rtas_buf);
+		upwa.state = be32_to_cpu(*(rtas_buf + 1));
+		upwa.reserved = be64_to_cpu(*((__be64 *)(rtas_buf + 2)));
+		upwa.nprops = be32_to_cpu(*(rtas_buf + 4));
+		prop_data = ((char *)rtas_buf) + sizeof(upwa);
 
 		/* On the first call to ibm,update-properties for a node the
 		 * the first property value descriptor contains an empty
@@ -169,18 +170,18 @@ static int update_dt_node(u32 phandle, s32 scope)
 		 * and the property value is the node path being updated.
 		 */
 		if (*prop_data == 0) {
-			prop_data++;
-			vd = *(u32 *)prop_data;
+			prop_data += sizeof(u32);
+			vd = be32_to_cpu(*(__be32 *)prop_data);
 			prop_data += vd + sizeof(vd);
-			upwa->nprops--;
+			upwa.nprops--;
 		}
 
-		for (i = 0; i < upwa->nprops; i++) {
+		for (i = 0; i < upwa.nprops; i++) {
 			char *prop_name;
 
 			prop_name = prop_data;
 			prop_data += strlen(prop_name) + 1;
-			vd = *(u32 *)prop_data;
+			vd = be32_to_cpu(*(__be32 *)prop_data);
 			prop_data += sizeof(vd);
 
 			switch (vd) {
@@ -236,10 +237,11 @@ static int add_dt_node(u32 parent_phandle, u32 drc_index)
 
 int pseries_devicetree_update(s32 scope)
 {
-	char *rtas_buf;
-	u32 *data;
+	__be32 *rtas_buf;
 	int update_nodes_token;
 	int rc;
+	__be32 *data;
+	u32 node;
 
 	update_nodes_token = rtas_token("ibm,update-nodes");
 	if (update_nodes_token == RTAS_UNKNOWN_SERVICE)
@@ -253,17 +255,16 @@ int pseries_devicetree_update(s32 scope)
 		rc = mobility_rtas_call(update_nodes_token, rtas_buf, scope);
 		if (rc && rc != 1)
 			break;
+		data = rtas_buf + 4;
+		node = be32_to_cpu(*data++);
 
-		data = (u32 *)rtas_buf + 4;
-		while (*data & NODE_ACTION_MASK) {
+		while (node & NODE_ACTION_MASK) {
 			int i;
-			u32 action = *data & NODE_ACTION_MASK;
-			int node_count = *data & NODE_COUNT_MASK;
-
-			data++;
+			u32 action = node & NODE_ACTION_MASK;
+			int node_count = node & NODE_COUNT_MASK;
 
 			for (i = 0; i < node_count; i++) {
-				u32 phandle = *data++;
+				u32 phandle = be32_to_cpu(*data++);
 				u32 drc_index;
 
 				switch (action) {
@@ -274,11 +275,12 @@ int pseries_devicetree_update(s32 scope)
 					update_dt_node(phandle, scope);
 					break;
 				case ADD_DT_NODE:
-					drc_index = *data++;
+					drc_index = be32_to_cpu(*data++);
 					add_dt_node(phandle, drc_index);
 					break;
 				}
 			}
+			node = be32_to_cpu(*data++);
 		}
 	} while (rc == 1);
 
