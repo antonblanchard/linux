@@ -98,15 +98,14 @@ static unsigned int local_entry_offset(const Elf64_Sym *sym)
 }
 #endif
 
+#define MAX_STUB_INSNS	7
+
 /* Like PPC32, we need little trampolines to do > 24-bit jumps (into
    the kernel itself).  But on PPC64, these need to be used for every
    jump, actually, to reset r2 (TOC+0x8000). */
 struct ppc64_stub_entry
 {
-	/* 28 byte jump instruction sequence (7 instructions). We only
-	 * need 6 instructions on ABIv2 but we always allocate 7 so
-	 * so we don't have to modify the trampoline load instruction. */
-	u32 jump[7];
+	u32 jump[MAX_STUB_INSNS];
 	u32 unused;
 	/* Data for the above code */
 	func_desc_t funcdata;
@@ -131,10 +130,10 @@ static u32 ppc64_stub_insns[] = {
 	0x396b0000,			/* addi    r11,r11, <low> */
 	/* Save current r2 value in magic place on the stack. */
 	0xf8410000|R2_STACK_OFFSET,	/* std     r2,R2_STACK_OFFSET(r1) */
-	0xe98b0020,			/* ld      r12,32(r11) */
+	0xe98b0000,			/* ld      r12,0(r11) */
 #if !defined(_CALL_ELF) || _CALL_ELF != 2
 	/* Set up new r2 from function descriptor */
-	0xe84b0028,			/* ld      r2,40(r11) */
+	0xe84b0008,			/* ld      r2,8(r11) */
 #endif
 	0x7d8903a6,			/* mtctr   r12 */
 	0x4e800420			/* bctr */
@@ -432,7 +431,9 @@ static inline int create_stub(Elf64_Shdr *sechdrs,
 	memcpy(entry->jump, ppc64_stub_insns, sizeof(ppc64_stub_insns));
 
 	/* Stub uses address relative to r2. */
-	reladdr = (unsigned long)entry - my_r2(sechdrs, me);
+	reladdr = (unsigned long)entry +
+			offsetof(struct ppc64_stub_entry, funcdata) -
+			my_r2(sechdrs, me);
 	if (reladdr > 0x7FFFFFFF || reladdr < -(0x80000000L)) {
 		printk("%s: Address %p of stub out of range of %p.\n",
 		       me->name, (void *)reladdr, (void *)my_r2);
