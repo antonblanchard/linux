@@ -1246,8 +1246,6 @@ _GLOBAL(return_to_handler)
 	std	r3,  -24(r1)
 	/* save TOC */
 	std	r2,  -16(r1)
-	std	r31, -8(r1)
-	mr	r31, r1
 	stdu	r1, -112(r1)
 
 	/*
@@ -1262,11 +1260,10 @@ _GLOBAL(return_to_handler)
 	/* return value has real return address */
 	mtlr	r3
 
-	ld	r1, 0(r1)
+	addi	r1,r1,112
 	ld	r4,  -32(r1)
 	ld	r3,  -24(r1)
 	ld	r2,  -16(r1)
-	ld	r31, -8(r1)
 
 	/* Jump back to real return address */
 	blr
