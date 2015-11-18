@@ -149,3 +149,37 @@ FUNC_START(test_fpu)
 	POP_BASIC_STACK(256)
 	blr
 FUNC_END(test_fpu)
+
+#int preempt_fpu(double *darray, volatile int *not_ready, int *sentinal)
+#On starting will (atomically) decrement not_ready as a signal that the FPU
+#has been loaded with darray. Will proceed to check the validity of the FPU
+#registers while sentinal is not zero.
+FUNC_START(preempt_fpu)
+	PUSH_BASIC_STACK(256)
+	std r3,32(sp) #double *darray
+	std r4,40(sp) #volatile int *not_ready
+	std r5,48(sp) #int *sentinal
+	PUSH_FPU(56)
+
+	bl load_fpu
+
+	#Atomic DEC
+	ld r3,40(sp)
+1:	lwarx r4,0,r3
+	addi r4,r4,-1
+	stwcx. r4,0,r3
+	bne- 1b
+
+2:	ld r3, 32(sp)
+	bl check_fpu
+	cmpdi r3,0
+	bne 3f
+	ld r4, 48(sp)
+	ld r5, 0(r4)
+	cmpwi r5,0
+	bne 2b
+
+3:	POP_FPU(56)
+	POP_BASIC_STACK(256)
+	blr
+FUNC_END(preempt_fpu)
