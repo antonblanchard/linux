@@ -248,19 +248,32 @@ EXPORT_SYMBOL_GPL(flush_altivec_to_thread);
 #endif /* CONFIG_ALTIVEC */
 
 #ifdef CONFIG_VSX
+void __giveup_vsx(struct task_struct *tsk)
+{
+	if (tsk->thread.regs->msr & MSR_FP)
+		__giveup_fpu(tsk);
+	if (tsk->thread.regs->msr & MSR_VEC)
+		__giveup_altivec(tsk);
+	tsk->thread.regs->msr &= ~MSR_VSX;
+}
+
 void giveup_vsx(struct task_struct *tsk)
 {
 	check_if_tm_restore_required(tsk);
 
 	msr_check_and_set(MSR_FP|MSR_VEC|MSR_VSX);
-	if (tsk->thread.regs->msr & MSR_FP)
-		__giveup_fpu(tsk);
-	if (tsk->thread.regs->msr & MSR_VEC)
-		__giveup_altivec(tsk);
 	__giveup_vsx(tsk);
 	msr_check_and_clear(MSR_FP|MSR_VEC|MSR_VSX);
 }
 EXPORT_SYMBOL(giveup_vsx);
+
+void save_vsx(struct task_struct *tsk)
+{
+	if (tsk->thread.regs->msr & MSR_FP)
+		save_fpu(tsk);
+	if (tsk->thread.regs->msr & MSR_VEC)
+		save_altivec(tsk);
+}
 
 void enable_kernel_vsx(void)
 {
@@ -457,7 +470,7 @@ void save_all(struct task_struct *tsk)
 #endif
 #ifdef CONFIG_VSX
 	if (usermsr & MSR_VSX)
-		__giveup_vsx(tsk);
+		save_vsx(tsk);
 #endif
 #ifdef CONFIG_SPE
 	if (usermsr & MSR_SPE)
