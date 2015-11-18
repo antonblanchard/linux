@@ -198,6 +198,16 @@ EXPORT_SYMBOL(enable_kernel_fp);
 #endif /* CONFIG_PPC_FPU */
 
 #ifdef CONFIG_ALTIVEC
+void __giveup_altivec(struct task_struct *tsk)
+{
+	save_altivec(tsk);
+	tsk->thread.regs->msr &= ~MSR_VEC;
+#ifdef CONFIG_VSX
+	if (cpu_has_feature(CPU_FTR_VSX))
+		tsk->thread.regs->msr &= ~MSR_VSX;
+#endif
+}
+
 void giveup_altivec(struct task_struct *tsk)
 {
 	check_if_tm_restore_required(tsk);
@@ -443,7 +453,7 @@ void save_all(struct task_struct *tsk)
 #endif
 #ifdef CONFIG_ALTIVEC
 	if (usermsr & MSR_VEC)
-		__giveup_altivec(tsk);
+		save_altivec(tsk);
 #endif
 #ifdef CONFIG_VSX
 	if (usermsr & MSR_VSX)
