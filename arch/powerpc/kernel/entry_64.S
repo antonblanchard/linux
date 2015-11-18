@@ -210,7 +210,54 @@ system_call:			/* label this so stack traces look sane */
 	li	r11,-MAX_ERRNO
 	andi.	r0,r9,(_TIF_SYSCALL_DOTRACE|_TIF_SINGLESTEP|_TIF_USER_WORK_MASK|_TIF_PERSYSCALL_MASK)
 	bne-	syscall_exit_work
-	cmpld	r3,r11
+
+	/*
+	 * This is an assembly version of checks performed in restore_math()
+	 * to avoid calling C unless absolutely necessary.
+	 * Note: In order to simplify the assembly, if the FP or VEC registers
+	 * are hot (and therefore restore_math() isn't called) the
+	 * LOAD_{FP,VEC} thread counter doesn't get incremented.
+	 * This is likely the best thing to do anyway because hot regs indicate
+	 * that the workload is doing a lot of syscalls that can be handled
+	 * quickly and without the need to touch FP or VEC regs (by the kernel).
+	 * a) If this workload is long running then this is exactly what the
+	 * kernel should be doing.
+	 * b) If this workload isn't long running then we'll soon fall back to
+	 * calling into C and the counter will be incremented regularly again
+	 * anyway.
+	 */
+	ld	r9,PACACURRENT(r13)
+	andi.	r0,r8,MSR_FP
+	addi	r9,r9,THREAD
+	lbz	r5,THREAD_LOAD_FP(r9)
+	/*
+	 * Goto 2 if !r0 && r5
+	 * The cmpb works because r5 can only have bits set in the lowest byte
+	 * and r0 may or may not have bit 13 set (different byte) but will have
+	 * a zero low byte therefore the low bytes must differ if r5 == true
+	 * and the bit 13 byte must be the same if !r0
+	 */
+	cmpb	r7,r0,r5
+	cmpldi	r7,0xff0
+#ifdef CONFIG_ALTIVEC
+	beq	2f
+
+	lbz	r9,THREAD_LOAD_VEC(r9)
+	andis.	r0,r8,MSR_VEC@h
+	/* Skip (goto 3) if r0 || !r9 */
+	bne	3f
+	cmpldi	r9,0
+	beq 3f
+#else
+	bne 3f
+#endif
+2:	addi    r3,r1,STACK_FRAME_OVERHEAD
+	bl	restore_math
+	ld	r8,_MSR(r1)
+	ld	r3,RESULT(r1)
+	li	r11,-MAX_ERRNO
+
+3:	cmpld	r3,r11
 	ld	r5,_CCR(r1)
 	bge-	syscall_error
 .Lsyscall_error_cont:
@@ -592,8 +639,8 @@ _GLOBAL(ret_from_except_lite)
 
 	/* Check current_thread_info()->flags */
 	andi.	r0,r4,_TIF_USER_WORK_MASK
-#ifdef CONFIG_PPC_BOOK3E
 	bne	1f
+#ifdef CONFIG_PPC_BOOK3E
 	/*
 	 * Check to see if the dbcr0 register is set up to debug.
 	 * Use the internal debug mode bit to do this.
@@ -608,7 +655,9 @@ _GLOBAL(ret_from_except_lite)
 	mtspr	SPRN_DBSR,r10
 	b	restore
 #else
-	beq	restore
+	addi	r3,r1,STACK_FRAME_OVERHEAD
+	bl	restore_math
+	b	restore
 #endif
 1:	andi.	r0,r4,_TIF_NEED_RESCHED
 	beq	2f

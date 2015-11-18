@@ -236,11 +236,13 @@ struct thread_struct {
 #endif
 	struct arch_hw_breakpoint hw_brk; /* info on the hardware breakpoint */
 	unsigned long	trap_nr;	/* last trap # on this thread */
+	u8 load_fp;
 #ifdef CONFIG_ALTIVEC
 	struct thread_vr_state vr_state;
 	struct thread_vr_state *vr_save_area;
 	unsigned long	vrsave;
 	int		used_vr;	/* set if process has used altivec */
+	u8 load_vec;
 #endif /* CONFIG_ALTIVEC */
 #ifdef CONFIG_VSX
 	/* VSR status */

@@ -366,6 +366,53 @@ void giveup_all(struct task_struct *tsk)
 	msr_check_and_clear(msr_all_available);
 }
 
+void restore_math(struct pt_regs *regs)
+{
+	unsigned long msr;
+
+	if (!current->thread.load_fp
+#ifdef CONFIG_ALTIVEC
+		&& !current->thread.load_vec)
+#else
+		)
+#endif
+		return;
+
+	msr = regs->msr;
+	msr_check_and_set(msr_all_available);
+
+	/*
+	 * Only reload if the bit is not set in the user MSR, the bit BEING set
+	 * indicates that the registers are hot
+	 */
+#ifdef CONFIG_PPC_FPU
+	if (current->thread.load_fp && !(msr & MSR_FP)) {
+		load_fp_state(&current->thread.fp_state);
+		msr |= MSR_FP | current->thread.fpexc_mode;
+		current->thread.load_fp++;
+	}
+#endif
+#ifdef CONFIG_ALTIVEC
+	if (current->thread.load_vec && !(msr & MSR_VEC) &&
+			cpu_has_feature(CPU_FTR_ALTIVEC)) {
+		load_vr_state(&current->thread.vr_state);
+		current->thread.used_vr = 1;
+		msr |= MSR_VEC;
+		current->thread.load_vec++;
+	}
+#endif
+#ifdef CONFIG_VSX
+	if (!(msr & MSR_VSX) && (msr & (MSR_FP | MSR_VEC)) == (MSR_FP | MSR_VEC)) {
+		current->thread.used_vsr = 1;
+		msr |= MSR_VSX;
+	}
+#endif
+
+	msr_check_and_clear(msr_all_available);
+
+	regs->msr = msr;
+}
+
 void flush_all_to_thread(struct task_struct *tsk)
 {
 	if (tsk->thread.regs) {
@@ -806,17 +853,9 @@ void restore_tm_state(struct pt_regs *regs)
 
 	msr_diff = current->thread.ckpt_regs.msr & ~regs->msr;
 	msr_diff &= MSR_FP | MSR_VEC | MSR_VSX;
-	if (msr_diff & MSR_FP) {
-		msr_check_and_set(MSR_FP);
-		load_fp_state(&current->thread.fp_state);
-		msr_check_and_clear(MSR_FP);
-		regs->msr |= current->thread.fpexc_mode;
-	}
-	if (msr_diff & MSR_VEC) {
-		msr_check_and_set(MSR_VEC);
-		load_vr_state(&current->thread.vr_state);
-		msr_check_and_clear(MSR_VEC);
-	}
+
+	restore_math(regs);
+
 	regs->msr |= msr_diff;
 }
 
@@ -977,6 +1016,11 @@ struct task_struct *__switch_to(struct task_struct *prev,
 		batch = this_cpu_ptr(&ppc64_tlb_batch);
 		batch->active = 1;
 	}
+
+	/* Don't do this on a kernel thread */
+	if (current_thread_info()->task->thread.regs)
+		restore_math(current_thread_info()->task->thread.regs);
+
 #endif /* CONFIG_PPC_BOOK3S_64 */
 
 	return last;
