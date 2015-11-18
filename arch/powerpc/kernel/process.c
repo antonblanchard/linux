@@ -133,6 +133,16 @@ void __msr_check_and_clear(unsigned long bits)
 EXPORT_SYMBOL(__msr_check_and_clear);
 
 #ifdef CONFIG_PPC_FPU
+void __giveup_fpu(struct task_struct *tsk)
+{
+	save_fpu(tsk);
+	tsk->thread.regs->msr &= ~MSR_FP;
+#ifdef CONFIG_VSX
+	if (cpu_has_feature(CPU_FTR_VSX))
+		tsk->thread.regs->msr &= ~MSR_VSX;
+#endif
+}
+
 void giveup_fpu(struct task_struct *tsk)
 {
 	check_if_tm_restore_required(tsk);
@@ -413,12 +423,46 @@ void restore_math(struct pt_regs *regs)
 	regs->msr = msr;
 }
 
+void save_all(struct task_struct *tsk)
+{
+	unsigned long usermsr;
+
+	if (!tsk->thread.regs)
+		return;
+
+	usermsr = tsk->thread.regs->msr;
+
+	if ((usermsr & msr_all_available) == 0)
+		return;
+
+	msr_check_and_set(msr_all_available);
+
+#ifdef CONFIG_PPC_FPU
+	if (usermsr & MSR_FP)
+		save_fpu(tsk);
+#endif
+#ifdef CONFIG_ALTIVEC
+	if (usermsr & MSR_VEC)
+		__giveup_altivec(tsk);
+#endif
+#ifdef CONFIG_VSX
+	if (usermsr & MSR_VSX)
+		__giveup_vsx(tsk);
+#endif
+#ifdef CONFIG_SPE
+	if (usermsr & MSR_SPE)
+		__giveup_spe(tsk);
+#endif
+
+	msr_check_and_clear(msr_all_available);
+}
+
 void flush_all_to_thread(struct task_struct *tsk)
 {
 	if (tsk->thread.regs) {
 		preempt_disable();
 		BUG_ON(tsk != current);
-		giveup_all(tsk);
+		save_all(tsk);
 
 #ifdef CONFIG_SPE
 		if (tsk->thread.regs->msr & MSR_SPE)
