@@ -16,23 +16,10 @@
  * (the type definitions are in asm/simple_spinlock_types.h)
  */
 #include <linux/irqflags.h>
-#include <asm/paravirt.h>
-#ifdef CONFIG_PPC64
-#include <asm/paca.h>
-#endif
 #include <asm/synch.h>
 #include <asm/ppc-opcode.h>
 
-#ifdef CONFIG_PPC64
-/* use 0x800000yy when locked, where yy == CPU number */
-#ifdef __BIG_ENDIAN__
-#define LOCK_TOKEN	(*(u32 *)(&get_paca()->lock_token))
-#else
-#define LOCK_TOKEN	(*(u32 *)(&get_paca()->paca_index))
-#endif
-#else
 #define LOCK_TOKEN	1
-#endif
 
 static __always_inline int arch_spin_value_unlocked(arch_spinlock_t lock)
 {
@@ -74,43 +61,14 @@ static inline int arch_spin_trylock(arch_spinlock_t *lock)
 	return __arch_spin_trylock(lock) == 0;
 }
 
-/*
- * On a system with shared processors (that is, where a physical
- * processor is multiplexed between several virtual processors),
- * there is no point spinning on a lock if the holder of the lock
- * isn't currently scheduled on a physical processor.  Instead
- * we detect this situation and ask the hypervisor to give the
- * rest of our timeslice to the lock holder.
- *
- * So that we can tell which virtual processor is holding a lock,
- * we put 0x80000000 | smp_processor_id() in the lock when it is
- * held.  Conveniently, we have a word in the paca that holds this
- * value.
- */
-
-#if defined(CONFIG_PPC_SPLPAR)
-/* We only yield to the hypervisor if we are in shared processor mode */
-void splpar_spin_yield(arch_spinlock_t *lock);
-void splpar_rw_yield(arch_rwlock_t *lock);
-#else /* SPLPAR */
-static inline void splpar_spin_yield(arch_spinlock_t *lock) {};
-static inline void splpar_rw_yield(arch_rwlock_t *lock) {};
-#endif
-
 static inline void spin_yield(arch_spinlock_t *lock)
 {
-	if (is_shared_processor())
-		splpar_spin_yield(lock);
-	else
-		barrier();
+	barrier();
 }
 
 static inline void rw_yield(arch_rwlock_t *lock)
 {
-	if (is_shared_processor())
-		splpar_rw_yield(lock);
-	else
-		barrier();
+	barrier();
 }
 
 static inline void arch_spin_lock(arch_spinlock_t *lock)
@@ -120,8 +78,6 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 			break;
 		do {
 			HMT_low();
-			if (is_shared_processor())
-				splpar_spin_yield(lock);
 		} while (unlikely(lock->slock != 0));
 		HMT_medium();
 	}
@@ -139,8 +95,6 @@ void arch_spin_lock_flags(arch_spinlock_t *lock, unsigned long flags)
 		local_irq_restore(flags);
 		do {
 			HMT_low();
-			if (is_shared_processor())
-				splpar_spin_yield(lock);
 		} while (unlikely(lock->slock != 0));
 		HMT_medium();
 		local_irq_restore(flags_dis);
@@ -166,13 +120,7 @@ static inline void arch_spin_unlock(arch_spinlock_t *lock)
  * read-locks.
  */
 
-#ifdef CONFIG_PPC64
-#define __DO_SIGN_EXTEND	"extsw	%0,%0\n"
-#define WRLOCK_TOKEN		LOCK_TOKEN	/* it's negative */
-#else
-#define __DO_SIGN_EXTEND
 #define WRLOCK_TOKEN		(-1)
-#endif
 
 /*
  * This returns the old value in the lock + 1,
@@ -184,7 +132,6 @@ static inline long __arch_read_trylock(arch_rwlock_t *rw)
 
 	__asm__ __volatile__(
 "1:	" PPC_LWARX(%0,0,%1,1) "\n"
-	__DO_SIGN_EXTEND
 "	addic.		%0,%0,1\n\
 	ble-		2f\n"
 "	stwcx.		%0,0,%1\n\
@@ -227,8 +174,6 @@ static inline void arch_read_lock(arch_rwlock_t *rw)
 			break;
 		do {
 			HMT_low();
-			if (is_shared_processor())
-				splpar_rw_yield(rw);
 		} while (unlikely(rw->lock < 0));
 		HMT_medium();
 	}
@@ -241,8 +186,6 @@ static inline void arch_write_lock(arch_rwlock_t *rw)
 			break;
 		do {
 			HMT_low();
-			if (is_shared_processor())
-				splpar_rw_yield(rw);
 		} while (unlikely(rw->lock != 0));
 		HMT_medium();
 	}

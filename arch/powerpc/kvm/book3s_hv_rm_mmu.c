@@ -410,12 +410,6 @@ long kvmppc_h_enter(struct kvm_vcpu *vcpu, unsigned long flags,
 				 &vcpu->arch.regs.gpr[4]);
 }
 
-#ifdef __BIG_ENDIAN__
-#define LOCK_TOKEN	(*(u32 *)(&get_paca()->lock_token))
-#else
-#define LOCK_TOKEN	(*(u32 *)(&get_paca()->paca_index))
-#endif
-
 static inline int is_mmio_hpte(unsigned long v, unsigned long r)
 {
 	return ((v & HPTE_V_ABSENT) &&
