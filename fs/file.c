@@ -26,11 +26,13 @@ unsigned int sysctl_nr_open_min = BITS_PER_LONG;
 unsigned int sysctl_nr_open_max =
 	__const_min(INT_MAX, ~(size_t)0/sizeof(void *)) & -BITS_PER_LONG;
 
+static struct kmem_cache *fdtable_cache;
+
 static void __free_fdtable(struct fdtable *fdt)
 {
 	kvfree(fdt->fd);
 	kvfree(fdt->open_fds);
-	kfree(fdt);
+	kmem_cache_free(fdtable_cache, fdt);
 }
 
 static void free_fdtable_rcu(struct rcu_head *rcu)
@@ -108,7 +110,7 @@ static struct fdtable * alloc_fdtable(unsigned int nr)
 	if (unlikely(nr > sysctl_nr_open))
 		nr = ((sysctl_nr_open - 1) | (BITS_PER_LONG - 1)) + 1;
 
-	fdt = kmalloc(sizeof(struct fdtable), GFP_KERNEL_ACCOUNT);
+	fdt = kmem_cache_alloc(fdtable_cache, GFP_KERNEL_ACCOUNT);
 	if (!fdt)
 		goto out;
 	fdt->max_fds = nr;
@@ -133,7 +135,7 @@ static struct fdtable * alloc_fdtable(unsigned int nr)
 out_arr:
 	kvfree(fdt->fd);
 out_fdt:
-	kfree(fdt);
+	kmem_cache_free(fdtable_cache, fdt);
 out:
 	return NULL;
 }
@@ -1040,3 +1042,11 @@ int iterate_fd(struct files_struct *files, unsigned n,
 	return res;
 }
 EXPORT_SYMBOL(iterate_fd);
+
+static int __init fdtable_init(void)
+{
+	fdtable_cache = kmem_cache_create("fdtable", sizeof(struct fdtable),
+					  0, SLAB_PANIC, NULL);
+	return 0;
+}
+core_initcall(fdtable_init);
