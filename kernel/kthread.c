@@ -1253,6 +1253,7 @@ void kthread_use_mm(struct mm_struct *mm)
 
 	if (active_mm != mm)
 		mmdrop(active_mm);
+	exit_lazy_tlb(active_mm, tsk);
 
 	to_kthread(tsk)->oldfs = get_fs();
 	set_fs(USER_DS);
