@@ -411,6 +411,13 @@ config MMU_GATHER_NO_GATHER
 	bool
 	depends on MMU_GATHER_TABLE_FREE
 
+# Would like to make this depend on MMU, because there is little use for lazy mm switching
+# with NOMMU, but have to audit NOMMU architecture code first.
+config MMU_LAZY_TLB
+	def_bool y
+	help
+	  Enable "lazy TLB" mmu context switching for kernel threads.
+
 config ARCH_HAVE_NMI_SAFE_CMPXCHG
 	bool
 
