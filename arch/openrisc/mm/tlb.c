@@ -159,6 +159,7 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next,
  * instance.
  */
 
+#define init_new_context init_new_context
 int init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
 	mm->context = NO_CONTEXT;
@@ -170,6 +171,7 @@ int init_new_context(struct task_struct *tsk, struct mm_struct *mm)
  * drops it.
  */
 
+#define destroy_context destroy_context
 void destroy_context(struct mm_struct *mm)
 {
 	flush_tlb_mm(mm);
