@@ -51,6 +51,25 @@ static inline void mmdrop(struct mm_struct *mm)
 
 void mmdrop(struct mm_struct *mm);
 
+static inline void mmgrab_lazy_tlb(struct mm_struct *mm)
+{
+	if (!IS_ENABLED(CONFIG_MMU_LAZY_TLB_SHOOTDOWN))
+		mmgrab(mm);
+}
+
+static inline void mmdrop_lazy_tlb(struct mm_struct *mm)
+{
+	if (!IS_ENABLED(CONFIG_MMU_LAZY_TLB_SHOOTDOWN))
+		mmdrop(mm);
+}
+
+static inline void mmdrop_lazy_tlb_smp_mb(struct mm_struct *mm)
+{
+	mmdrop_lazy_tlb(mm);
+	if (IS_ENABLED(CONFIG_MMU_LAZY_TLB_SHOOTDOWN))
+		smp_mb();
+}
+
 /*
  * This has to be called after a get_task_mm()/mmget_not_zero()
  * followed by taking the mmap_lock for writing before modifying the
