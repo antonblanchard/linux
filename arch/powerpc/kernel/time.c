@@ -149,24 +149,9 @@ EXPORT_SYMBOL_GPL(ppc_tb_freq);
 bool tb_invalid;
 
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
-/*
- * Factor for converting from cputime_t (timebase ticks) to
- * microseconds. This is stored as 0.64 fixed-point binary fraction.
- */
-u64 __cputime_usec_factor;
-EXPORT_SYMBOL(__cputime_usec_factor);
-
 #ifdef CONFIG_PPC_SPLPAR
 void (*dtl_consumer)(struct dtl_entry *, u64);
 #endif
-
-static void calc_cputime_factors(void)
-{
-	struct div_result res;
-
-	div128_by_32(1000000, 0, tb_ticks_per_sec, &res);
-	__cputime_usec_factor = res.result_low;
-}
 
 /*
  * Read the SPURR on systems that have it, otherwise the PURR,
@@ -438,8 +423,6 @@ void vtime_flush(struct task_struct *tsk)
 	acct->softirq_time = 0;
 }
 
-#else /* ! CONFIG_VIRT_CPU_ACCOUNTING_NATIVE */
-#define calc_cputime_factors()
 #endif
 
 void __delay(unsigned long loops)
@@ -1084,7 +1067,6 @@ void __init time_init(void)
 	tb_ticks_per_jiffy = ppc_tb_freq / HZ;
 	tb_ticks_per_sec = ppc_tb_freq;
 	tb_ticks_per_usec = ppc_tb_freq / 1000000;
-	calc_cputime_factors();
 
 	/*
 	 * Compute scale factor for sched_clock.
