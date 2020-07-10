@@ -3294,22 +3294,19 @@ static struct rq *finish_task_switch(struct task_struct *prev)
 	kcov_finish_switch(current);
 
 	fire_sched_in_preempt_notifiers(current);
+
 	/*
 	 * When switching through a kernel thread, the loop in
 	 * membarrier_{private,global}_expedited() may have observed that
 	 * kernel thread and not issued an IPI. It is therefore possible to
 	 * schedule between user->kernel->user threads without passing though
-	 * switch_mm(). Membarrier requires a barrier after storing to
-	 * rq->curr, before returning to userspace, so provide them here:
-	 *
-	 * - a full memory barrier for {PRIVATE,GLOBAL}_EXPEDITED, implicitly
-	 *   provided by mmdrop(),
-	 * - a sync_core for SYNC_CORE.
+	 * switch_mm(). Membarrier requires a full barrier after storing to
+	 * rq->curr, before returning to userspace, for
+	 * {PRIVATE,GLOBAL}_EXPEDITED. This is implicitly provided by mmdrop().
 	 */
-	if (mm) {
-		membarrier_mm_sync_core_before_usermode(mm);
+	if (mm)
 		mmdrop(mm);
-	}
+
 	if (unlikely(prev_state == TASK_DEAD)) {
 		if (prev->sched_class->task_dead)
 			prev->sched_class->task_dead(prev);
@@ -6292,6 +6289,7 @@ void idle_task_exit(void)
 	BUG_ON(current != this_rq()->idle);
 
 	if (mm != &init_mm) {
+		/* enter_lazy_tlb is not done because we're about to go down */
 		switch_mm(mm, &init_mm, current);
 		finish_arch_post_lock_switch();
 	}
