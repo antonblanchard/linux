@@ -6,6 +6,7 @@
 #include <linux/atomic.h>
 #include <linux/mm_types.h>
 #include <linux/pkeys.h>
+#include <linux/sched/mm.h>
 
 #include <trace/events/tlb.h>
 
@@ -92,12 +93,48 @@ static inline void switch_ldt(struct mm_struct *prev, struct mm_struct *next)
 }
 #endif
 
+#define enter_lazy_tlb enter_lazy_tlb
 extern void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk);
+
+#ifdef CONFIG_MEMBARRIER
+/*
+ * Ensure that a core serializing instruction is issued before returning
+ * to user-mode, if a SYNC_CORE was requested. x86 implements return to
+ * user-space through sysexit, sysrel, and sysretq, which are not core
+ * serializing.
+ *
+ * See the membarrier comment in finish_task_switch as to why this is done
+ * in exit_lazy_tlb.
+ */
+#define exit_lazy_tlb exit_lazy_tlb
+static inline void exit_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk)
+{
+	/* Switching mm is serializing with write_cr3 */
+        if (tsk->mm != mm)
+                return;
+
+        if (likely(!(atomic_read(&mm->membarrier_state) &
+                     MEMBARRIER_STATE_PRIVATE_EXPEDITED_SYNC_CORE)))
+                return;
+
+	/* With PTI, we unconditionally serialize before running user code. */
+	if (static_cpu_has(X86_FEATURE_PTI))
+		return;
+	/*
+	 * Return from interrupt and NMI is done through iret, which is core
+	 * serializing.
+	 */
+	if (in_irq() || in_nmi())
+		return;
+	sync_core();
+}
+#endif
 
 /*
  * Init a new mm.  Used on mm copies, like at fork()
  * and on mm's that are brand-new, like at execve().
  */
+#define init_new_context init_new_context
 static inline int init_new_context(struct task_struct *tsk,
 				   struct mm_struct *mm)
 {
@@ -117,6 +154,8 @@ static inline int init_new_context(struct task_struct *tsk,
 	init_new_context_ldt(mm);
 	return 0;
 }
+
+#define destroy_context destroy_context
 static inline void destroy_context(struct mm_struct *mm)
 {
 	destroy_context_ldt(mm);
@@ -214,5 +253,7 @@ static inline bool arch_vma_access_permitted(struct vm_area_struct *vma,
 }
 
 unsigned long __get_current_cr3_fast(void);
+
+#include <asm-generic/mmu_context.h>
 
 #endif /* _ASM_X86_MMU_CONTEXT_H */
