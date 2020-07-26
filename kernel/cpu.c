@@ -572,11 +572,13 @@ static int finish_cpu(unsigned int cpu)
 
 	/*
 	 * idle_task_exit() will have switched to &init_mm, now
-	 * clean up any remaining active_mm state.
+	 * clean up any remaining active_mm state. exit_lazy_tlb
+	 * is not done, if an arch did any accounting in these
+	 * functions it would have to be added.
 	 */
 	if (mm != &init_mm)
 		idle->active_mm = &init_mm;
-	mmdrop(mm);
+	mmdrop_lazy_tlb(mm);
 	return 0;
 }
 

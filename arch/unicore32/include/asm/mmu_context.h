@@ -18,24 +18,6 @@
 #include <asm/cacheflush.h>
 #include <asm/cpu-single.h>
 
-#define init_new_context(tsk, mm)	0
-
-#define destroy_context(mm)		do { } while (0)
-
-/*
- * This is called when "tsk" is about to enter lazy TLB mode.
- *
- * mm:  describes the currently active mm context
- * tsk: task which is entering lazy tlb
- * cpu: cpu number which is entering lazy tlb
- *
- * tsk->mm will be NULL
- */
-static inline void
-enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk)
-{
-}
-
 /*
  * This is the actual mm switch as far as the scheduler
  * is concerned.  No registers are touched.  We avoid
@@ -51,9 +33,6 @@ switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	if (!cpumask_test_and_set_cpu(cpu, mm_cpumask(next)) || prev != next)
 		cpu_switch_mm(next->pgd, next);
 }
-
-#define deactivate_mm(tsk, mm)	do { } while (0)
-#define activate_mm(prev, next)	switch_mm(prev, next, NULL)
 
 /*
  * We are inserting a "fake" vma for the user-accessible vector page so
@@ -95,4 +74,7 @@ static inline bool arch_vma_access_permitted(struct vm_area_struct *vma,
 	/* by default, allow everything */
 	return true;
 }
+
+#include <asm-generic/mmu_context.h>
+
 #endif

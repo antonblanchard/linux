@@ -5,6 +5,10 @@
 #
 # Architecture requirements
 #
+# If your architecture returns to user-space through non-core-serializing
+# instructions, you need to ensure these are done in switch_mm and exit_lazy_tlb
+# (if lazy tlb switching is implemented).
+#
 # * arm/arm64
 #
 # Rely on implicit context synchronization as a result of exception return
@@ -24,7 +28,7 @@
 # instead on write_cr3() performed by switch_mm() to provide core serialization
 # after changing the current mm, and deal with the special case of kthread ->
 # uthread (temporarily keeping current mm into active_mm) by issuing a
-# sync_core_before_usermode() in that specific case.
+# serializing instruction in exit_lazy_mm() in that specific case.
 #
     -----------------------
     |         arch |status|

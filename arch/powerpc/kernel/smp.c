@@ -1253,7 +1253,7 @@ void start_secondary(void *unused)
 	unsigned int cpu = smp_processor_id();
 	struct cpumask *(*sibling_mask)(int) = cpu_sibling_mask;
 
-	mmgrab(&init_mm);
+	mmgrab(&init_mm); /* XXX: where is the mmput for this? */
 	current->active_mm = &init_mm;
 
 	smp_store_cpu_info(cpu);
