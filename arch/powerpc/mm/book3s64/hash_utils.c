@@ -1559,6 +1559,7 @@ static void hash_preload(struct mm_struct *mm, pte_t *ptep, unsigned long ea,
 	pgd_t *pgdir;
 	int rc, ssize, update_flags = 0;
 	unsigned long access = _PAGE_PRESENT | _PAGE_READ | (is_exec ? _PAGE_EXEC : 0);
+	unsigned long flags;
 
 	BUG_ON(get_region_id(ea) != USER_REGION_ID);
 
@@ -1592,6 +1593,8 @@ static void hash_preload(struct mm_struct *mm, pte_t *ptep, unsigned long ea,
 		return;
 #endif /* CONFIG_PPC_64K_PAGES */
 
+	local_irq_save(flags);
+
 	/* Is that local to this CPU ? */
 	if (mm_is_thread_local(mm))
 		update_flags |= HPTE_LOCAL_UPDATE;
@@ -1614,6 +1617,8 @@ static void hash_preload(struct mm_struct *mm, pte_t *ptep, unsigned long ea,
 				   mm_ctx_user_psize(&mm->context),
 				   mm_ctx_user_psize(&mm->context),
 				   pte_val(*ptep));
+
+	local_irq_restore(flags);
 }
 
 /*
