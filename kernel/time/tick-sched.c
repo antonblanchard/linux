@@ -567,20 +567,20 @@ static void tick_nohz_start_idle(struct tick_sched *ts)
 }
 
 /**
- * get_cpu_idle_time_us - get the total idle time of a CPU
+ * get_cpu_idle_time_ns - get the total idle time of a CPU
  * @cpu: CPU number to query
  * @last_update_time: variable to store update time in. Do not update
  * counters if NULL.
  *
  * Return the cumulative idle time (since boot) for a given
- * CPU, in microseconds.
+ * CPU, in nanoseconds.
  *
  * This time is measured via accounting rather than sampling,
  * and is as accurate as ktime_get() is.
  *
  * This function returns -1 if NOHZ is not enabled.
  */
-u64 get_cpu_idle_time_us(int cpu, u64 *last_update_time)
+u64 get_cpu_idle_time_ns(int cpu, u64 *last_update_time)
 {
 	struct tick_sched *ts = &per_cpu(tick_cpu_sched, cpu);
 	ktime_t now, idle;
@@ -602,18 +602,17 @@ u64 get_cpu_idle_time_us(int cpu, u64 *last_update_time)
 		}
 	}
 
-	return ktime_to_us(idle);
+	return ktime_to_ns(idle);
 
 }
-EXPORT_SYMBOL_GPL(get_cpu_idle_time_us);
 
 /**
- * get_cpu_iowait_time_us - get the total iowait time of a CPU
+ * get_cpu_idle_time_us - get the total idle time of a CPU
  * @cpu: CPU number to query
  * @last_update_time: variable to store update time in. Do not update
  * counters if NULL.
  *
- * Return the cumulative iowait time (since boot) for a given
+ * Return the cumulative idle time (since boot) for a given
  * CPU, in microseconds.
  *
  * This time is measured via accounting rather than sampling,
@@ -621,7 +620,32 @@ EXPORT_SYMBOL_GPL(get_cpu_idle_time_us);
  *
  * This function returns -1 if NOHZ is not enabled.
  */
-u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time)
+u64 get_cpu_idle_time_us(int cpu, u64 *last_update_time)
+{
+	u64 ret = get_cpu_idle_time_ns(cpu, last_update_time);
+
+	if (ret == -1)
+		return ret;
+	else
+		return ret * NSEC_PER_USEC;
+}
+EXPORT_SYMBOL_GPL(get_cpu_idle_time_us);
+
+/**
+ * get_cpu_iowait_time_ns - get the total iowait time of a CPU
+ * @cpu: CPU number to query
+ * @last_update_time: variable to store update time in. Do not update
+ * counters if NULL.
+ *
+ * Return the cumulative iowait time (since boot) for a given
+ * CPU, in nanoseconds.
+ *
+ * This time is measured via accounting rather than sampling,
+ * and is as accurate as ktime_get() is.
+ *
+ * This function returns -1 if NOHZ is not enabled.
+ */
+u64 get_cpu_iowait_time_ns(int cpu, u64 *last_update_time)
 {
 	struct tick_sched *ts = &per_cpu(tick_cpu_sched, cpu);
 	ktime_t now, iowait;
@@ -643,7 +667,31 @@ u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time)
 		}
 	}
 
-	return ktime_to_us(iowait);
+	return ktime_to_ns(iowait);
+}
+
+/**
+ * get_cpu_iowait_time_us - get the total iowait time of a CPU
+ * @cpu: CPU number to query
+ * @last_update_time: variable to store update time in. Do not update
+ * counters if NULL.
+ *
+ * Return the cumulative iowait time (since boot) for a given
+ * CPU, in microseconds.
+ *
+ * This time is measured via accounting rather than sampling,
+ * and is as accurate as ktime_get() is.
+ *
+ * This function returns -1 if NOHZ is not enabled.
+ */
+u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time)
+{
+	u64 ret = get_cpu_iowait_time_ns(cpu, last_update_time);
+
+	if (ret == -1)
+		return ret;
+	else
+		return ret * NSEC_PER_USEC;
 }
 EXPORT_SYMBOL_GPL(get_cpu_iowait_time_us);
 
