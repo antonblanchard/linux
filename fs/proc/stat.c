@@ -104,7 +104,15 @@ static void show_all_irqs(struct seq_file *p)
 	show_irq_gap(p, nr_irqs - next);
 }
 
-static int show_stat(struct seq_file *p, void *v)
+static u64 nsec_to_stat(u64 x, bool ns)
+{
+	if (ns)
+		return x;
+	else
+		return nsec_to_clock_t(x);
+}
+
+static int __show_stat(struct seq_file *p, void *v, bool ns)
 {
 	int i, j;
 	u64 user, nice, system, idle, iowait, irq, softirq, steal;
@@ -147,16 +155,16 @@ static int show_stat(struct seq_file *p, void *v)
 	}
 	sum += arch_irq_stat();
 
-	seq_put_decimal_ull(p, "cpu  ", nsec_to_clock_t(user));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(nice));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(system));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(idle));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(iowait));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(irq));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(softirq));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(steal));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(guest));
-	seq_put_decimal_ull(p, " ", nsec_to_clock_t(guest_nice));
+	seq_put_decimal_ull(p, "cpu  ", nsec_to_stat(user, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(nice, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(system, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(idle, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(iowait, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(irq, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(softirq, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(steal, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(guest, ns));
+	seq_put_decimal_ull(p, " ", nsec_to_stat(guest_nice, ns));
 	seq_putc(p, '\n');
 
 	for_each_online_cpu(i) {
@@ -177,16 +185,16 @@ static int show_stat(struct seq_file *p, void *v)
 		guest		= cpustat[CPUTIME_GUEST];
 		guest_nice	= cpustat[CPUTIME_GUEST_NICE];
 		seq_printf(p, "cpu%d", i);
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(user));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(nice));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(system));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(idle));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(iowait));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(irq));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(softirq));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(steal));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(guest));
-		seq_put_decimal_ull(p, " ", nsec_to_clock_t(guest_nice));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(user, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(nice, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(system, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(idle, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(iowait, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(irq, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(softirq, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(steal, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(guest, ns));
+		seq_put_decimal_ull(p, " ", nsec_to_stat(guest_nice, ns));
 		seq_putc(p, '\n');
 	}
 	seq_put_decimal_ull(p, "intr ", (unsigned long long)sum);
@@ -213,6 +221,15 @@ static int show_stat(struct seq_file *p, void *v)
 
 	return 0;
 }
+static int show_stat(struct seq_file *p, void *v)
+{
+	return __show_stat(p, v, false);
+}
+
+static int show_statns(struct seq_file *p, void *v)
+{
+	return __show_stat(p, v, true);
+}
 
 static int stat_open(struct inode *inode, struct file *file)
 {
@@ -231,9 +248,27 @@ static const struct proc_ops stat_proc_ops = {
 	.proc_release	= single_release,
 };
 
+static int statns_open(struct inode *inode, struct file *file)
+{
+	unsigned int size = 1024 + 128 * num_online_cpus();
+
+	/* minimum size to display an interrupt count : 2 bytes */
+	size += 2 * nr_irqs;
+	return single_open_size(file, show_statns, NULL, size);
+}
+
+static const struct proc_ops statns_proc_ops = {
+	.proc_flags	= PROC_ENTRY_PERMANENT,
+	.proc_open	= statns_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= single_release,
+};
+
 static int __init proc_stat_init(void)
 {
 	proc_create("stat", 0, NULL, &stat_proc_ops);
+	proc_create("statns", 0, NULL, &statns_proc_ops);
 	return 0;
 }
 fs_initcall(proc_stat_init);
