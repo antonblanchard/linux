@@ -80,6 +80,7 @@ static int liteeth_rx(struct net_device *netdev)
 	return netif_rx(skb);
 }
 
+#if 0
 static irqreturn_t liteeth_interrupt(int irq, void *dev_id)
 {
 	struct net_device *netdev = dev_id;
@@ -100,6 +101,32 @@ static irqreturn_t liteeth_interrupt(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+#else
+static irqreturn_t liteeth_interrupt(int irq, void *dev_id)
+{
+	struct net_device *netdev = dev_id;
+	struct liteeth *priv = netdev_priv(netdev);
+	u8 reg;
+	int rx_max = 32;
+
+	//pr_err("IRQ");
+
+	while ((reg = litex_read8(priv->base + LITEETH_READER_EV_PENDING_OFF))) {
+		//pr_err(" TX %x", reg);
+		netdev->stats.tx_packets++;
+		litex_write8(priv->base + LITEETH_READER_EV_PENDING_OFF, reg);
+	}
+
+	while ((reg = litex_read8(priv->base + LITEETH_WRITER_EV_PENDING_OFF)) && rx_max--) {
+		//pr_err(" RX %x", reg);
+		liteeth_rx(netdev);
+		litex_write8(priv->base + LITEETH_WRITER_EV_PENDING_OFF, reg);
+	}
+	//pr_err("DONE");
+
+	return IRQ_HANDLED;
+}
+#endif
 
 static void liteeh_timeout(struct timer_list *t)
 {
