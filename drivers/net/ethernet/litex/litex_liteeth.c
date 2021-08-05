@@ -184,7 +184,7 @@ static int liteeth_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	}
 
 	txbuffer = priv->tx_base + priv->tx_slot * LITEETH_BUFFER_SIZE;
-	memcpy_fromio(txbuffer, skb->data, skb->len);
+	memcpy_toio(txbuffer, skb->data, skb->len);
 	litex_write8(priv->base + LITEETH_READER_SLOT_OFF, priv->tx_slot);
 	litex_write16(priv->base + LITEETH_READER_LENGTH_OFF, skb->len);
 
