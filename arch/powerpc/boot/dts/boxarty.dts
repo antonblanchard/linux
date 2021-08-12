@@ -1,0 +1,983 @@
+/dts-v1/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/leds/leds-pca955x.h>
+
+/ {
+	#size-cells = <0x02>;
+	#address-cells = <0x02>;
+	model-name = "microwatt";
+	compatible = "microwatt-soc";
+
+	aliases {
+		serial0 = &UART0;
+	};
+
+	reserved-memory {
+		#size-cells = <0x02>;
+		#address-cells = <0x02>;
+		ranges;
+		/* LPC FW cycle bridge region requires natural alignment */
+		flash_memory: region@0c000000 {
+			reg = <0x00000000 0x0c000000 0x00000000 0x04000000>; /* 64M */
+		};
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x00000000 0x00000000 0x10000000>;
+	};
+
+	cpus {
+		#size-cells = <0x00>;
+		#address-cells = <0x01>;
+
+		ibm,powerpc-cpu-features {
+			display-name = "Microwatt";
+			isa = <3000>;
+			device_type = "cpu-features";
+			compatible = "ibm,powerpc-cpu-features";
+
+			mmu-radix {
+				isa = <3000>;
+				usable-privilege = <2>;
+				os-support = <0x00>;
+			};
+
+			little-endian {
+				isa = <0>;
+				usable-privilege = <3>;
+				os-support = <0x00>;
+			};
+
+			cache-inhibited-large-page {
+				isa = <0x00>;
+				usable-privilege = <2>;
+				os-support = <0x00>;
+			};
+
+			fixed-point-v3 {
+				isa = <3000>;
+				usable-privilege = <3>;
+			};
+
+			no-execute {
+				isa = <0x00>;
+				usable-privilege = <2>;
+				os-support = <0x00>;
+			};
+
+			FP: floating-point {
+				hfscr-bit-nr = <0x00>;
+				hwcap-bit-nr = <0x1b>;
+				isa = <0x00>;
+				usable-privilege = <0x07>;
+				hv-support = <0x00>;
+				os-support = <0x00>;
+			};
+
+		};
+
+		PowerPC,Microwatt@0 {
+			i-cache-sets = <2>;
+			ibm,dec-bits = <64>;
+			reservation-granule-size = <64>;
+			clock-frequency = <100000000>;
+			timebase-frequency = <100000000>;
+			i-tlb-sets = <1>;
+			ibm,ppc-interrupt-server#s = <0>;
+			i-cache-block-size = <64>;
+			d-cache-block-size = <64>;
+			ibm,pa-features = [40 00 c2 27 00 00 00 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 80 00 80 00 80 00 00 00 80 00 80 00 00 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00];
+			d-cache-sets = <2>;
+			ibm,pir = <0x3c>;
+			i-tlb-size = <64>;
+			cpu-version = <0x990000>;
+			status = "okay";
+			i-cache-size = <0x1000>;
+			ibm,processor-radix-AP-encodings = <0x0c 0xa0000010 0x20000015 0x4000001e>;
+			tlb-size = <0>;
+			tlb-sets = <0>;
+			device_type = "cpu";
+			d-tlb-size = <128>;
+			d-tlb-sets = <2>;
+			reg = <0>;
+			general-purpose;
+			64-bit;
+			d-cache-size = <0x1000>;
+			ibm,chip-id = <0x00>;
+		};
+	};
+
+	soc@c0000000 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		interrupt-parent = <&ICS>;
+
+		ranges = <0 0 0xc0000000 0x40000000>;
+
+		interrupt-controller@4000 {
+			compatible = "openpower,xics-presentation", "ibm,ppc-xicp";
+			ibm,interrupt-server-ranges = <0x0 0x1>;
+			reg = <0x4000 0x100>;
+		};
+
+		ICS: interrupt-controller@5000 {
+			compatible = "openpower,xics-sources";
+			interrupt-controller;
+			interrupt-ranges = <0x10 0x10>;
+			reg = <0x5000 0x100>;
+			#address-cells = <0>;
+			#size-cells = <0>;
+			#interrupt-cells = <2>;
+		};
+
+		UART0: serial@2000 {
+			device_type = "serial";
+			compatible = "ns16550";
+			reg = <0x2000 0x8>;
+			clock-frequency = <100000000>;
+			current-speed = <115200>;
+			reg-shift = <2>;
+			fifo-size = <16>;
+			interrupts = <0x10 0x1>;
+		};
+
+		UART1: serial@be00000 {
+			device_type = "serial";
+			compatible = "ns16550";
+			reg = <0xbe00000 0x8>;
+			clock-frequency = <100000000>;
+			current-speed = <115200>;
+			reg-shift = <2>;
+			fifo-size = <16>;
+			interrupts = <0x15 0x1>;
+		};
+
+		gpio: gpio@7000 {
+			device_type = "gpio";
+			compatible = "faraday,ftgpio010";
+			gpio-controller;
+			#gpio-cells = <2>;
+			reg = <0x7000 0x80>;
+			interrupts = <0x14 1>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		ethernet@8020000 {
+			compatible = "litex,liteeth";
+			reg = <0x8021000 0x100
+			       0x8020800 0x100
+			       0x8030000 0x2000>;
+			reg-names = "mac", "mido", "buffer";
+			litex,rx-slots = <2>;
+			litex,tx-slots = <2>;
+			litex,slot-size = <0x800>;
+			interrupts = <0x11 0x1>;
+			mac-address = [00 18 3e 03 27 98];
+			#mac-address = [00 18 3e 03 29 3a];
+		};
+		litex-mmc@8040000 {
+			compatible = "litex,mmc";
+			reg = <0x8042800 0x800
+			       0x8041000 0x800
+			       0x8040800 0x800
+			       0x8042000 0x800
+			       0x8041800 0x800>;
+			bus-width = <4>;
+			interrupts = <0x13 1>;
+		};
+                ibt: ibt@be01000 {
+                        compatible = "ibm,microwatt-ibt-bmc";
+                        reg = <0x0be01000 0x18>;
+			interrupts = <0x16 0x1>;
+                };
+                lpc_ctrl: lpc-ctrl@be02000 {
+                        compatible = "ibm,microwatt-lpc-ctrl";
+                        reg = <0x0be02000 0x10>;
+                        memory-region = <&flash_memory>;
+                };
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		fan0 {
+			retain-state-shutdown;
+			default-state = "keep";
+			gpios = <&pca0 0 GPIO_ACTIVE_LOW>;
+		};
+
+		fan1 {
+			retain-state-shutdown;
+			default-state = "keep";
+			gpios = <&pca0 1 GPIO_ACTIVE_LOW>;
+		};
+
+		fan2 {
+			retain-state-shutdown;
+			default-state = "keep";
+			gpios = <&pca0 2 GPIO_ACTIVE_LOW>;
+		};
+
+		fan3 {
+			retain-state-shutdown;
+			default-state = "keep";
+			gpios = <&pca0 3 GPIO_ACTIVE_LOW>;
+		};
+
+		front-fault {
+			retain-state-shutdown;
+			default-state = "keep";
+			gpios = <&pca0 13 GPIO_ACTIVE_LOW>;
+		};
+
+		front-power {
+			retain-state-shutdown;
+			default-state = "keep";
+			gpios = <&pca0 14 GPIO_ACTIVE_LOW>;
+		};
+
+		front-id {
+			retain-state-shutdown;
+			default-state = "keep";
+			gpios = <&pca0 15 GPIO_ACTIVE_LOW>;
+		};
+
+	};
+
+	fsi: gpio-fsi {
+		compatible = "fsi-master-gpio", "fsi-master";
+		#address-cells = <2>;
+		#size-cells = <0>;
+		no-gpio-delays;
+
+		clock-gpios = <&gpio 12 GPIO_ACTIVE_HIGH>;
+		data-gpios = <&gpio 13 GPIO_ACTIVE_HIGH>;
+		mux-gpios = <&gpio 11 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio 8 GPIO_ACTIVE_HIGH>;
+		trans-gpios = <&gpio 10 GPIO_ACTIVE_HIGH>;
+	};
+
+	iio-hwmon-dps310 {
+		compatible = "iio-hwmon";
+		io-channels = <&dps 0>;
+	};
+
+	iio-hwmon-bmp280 {
+		compatible = "iio-hwmon";
+		io-channels = <&bmp 1>;
+	};
+
+	/* I2C3 on schematics */
+	i2c2: i2c-bus2 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 2 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 3 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C4 on schematics */
+	i2c3: i2c-bus3 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 6 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 7 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C5 on schematics */
+	i2c4: i2c-bus4 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 20 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 21 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C6 on schematics */
+	i2c5: i2c-bus5 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 30 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 31 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C10 on schematics */
+	i2c9: i2c-bus9 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 16 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 17 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C11 on schematics */
+	i2c10: i2c-bus10 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 4 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 5 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C12 on schematics */
+	i2c11: i2c-bus11 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 0 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 1 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C13 on schematics */
+	i2c12: i2c-bus12 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 14 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 15 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	/* I2C14 on schematics */
+	i2c13: i2c-bus13 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "i2c-gpio";
+		i2c-gpio,delay-us = <0>;
+		scl-gpios = <&gpio 18 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio 19 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
+	};
+
+	chosen {
+		bootargs = "root=/dev/mmcblk0p1 rootwait";
+		ibm,architecture-vec-5 = [19 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 40 00 40];
+		stdout-path = &UART0;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+
+	/* MUX ->
+	 *    Samtec 1
+	 *    Samtec 2
+	 */
+};
+
+&i2c3 {
+	status = "okay";
+
+	bmp: bmp280@77 {
+		compatible = "bosch,bmp280";
+		reg = <0x77>;
+		#io-channel-cells = <1>;
+	};
+
+	max31785@52 {
+		compatible = "maxim,max31785a";
+		reg = <0x52>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		fan@0 {
+			compatible = "pmbus-fan";
+			reg = <0>;
+			tach-pulses = <2>;
+			maxim,fan-rotor-input = "tach";
+			maxim,fan-pwm-freq = <25000>;
+			maxim,fan-dual-tach;
+			maxim,fan-no-watchdog;
+			maxim,fan-no-fault-ramp;
+			maxim,fan-ramp = <2>;
+			maxim,fan-fault-pin-mon;
+		};
+
+		fan@1 {
+			compatible = "pmbus-fan";
+			reg = <1>;
+			tach-pulses = <2>;
+			maxim,fan-rotor-input = "tach";
+			maxim,fan-pwm-freq = <25000>;
+			maxim,fan-dual-tach;
+			maxim,fan-no-watchdog;
+			maxim,fan-no-fault-ramp;
+			maxim,fan-ramp = <2>;
+			maxim,fan-fault-pin-mon;
+		};
+
+		fan@2 {
+			compatible = "pmbus-fan";
+			reg = <2>;
+			tach-pulses = <2>;
+			maxim,fan-rotor-input = "tach";
+			maxim,fan-pwm-freq = <25000>;
+			maxim,fan-dual-tach;
+			maxim,fan-no-watchdog;
+			maxim,fan-no-fault-ramp;
+			maxim,fan-ramp = <2>;
+			maxim,fan-fault-pin-mon;
+		};
+
+		fan@3 {
+			compatible = "pmbus-fan";
+			reg = <3>;
+			tach-pulses = <2>;
+			maxim,fan-rotor-input = "tach";
+			maxim,fan-pwm-freq = <25000>;
+			maxim,fan-dual-tach;
+			maxim,fan-no-watchdog;
+			maxim,fan-no-fault-ramp;
+			maxim,fan-ramp = <2>;
+			maxim,fan-fault-pin-mon;
+		};
+	};
+
+	dps: dps310@76 {
+		compatible = "infineon,dps310";
+		reg = <0x76>;
+		#io-channel-cells = <0>;
+	};
+
+	pca0: pca9552@60 {
+		compatible = "nxp,pca9552";
+		reg = <0x60>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		gpio@0 {
+			reg = <0>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@1 {
+			reg = <1>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@2 {
+			reg = <2>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@3 {
+			reg = <3>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@4 {
+			reg = <4>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@5 {
+			reg = <5>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@6 {
+			reg = <6>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@7 {
+			reg = <7>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@8 {
+			reg = <8>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@9 {
+			reg = <9>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@10 {
+			reg = <10>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@11 {
+			reg = <11>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@12 {
+			reg = <12>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@13 {
+			reg = <13>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@14 {
+			reg = <14>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@15 {
+			reg = <15>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+	};
+
+	power-supply@68 {
+		compatible = "ibm,cffps1";
+		reg = <0x68>;
+	};
+
+	power-supply@69 {
+		compatible = "ibm,cffps1";
+		reg = <0x69>;
+	};
+};
+
+&i2c4 {
+	status = "okay";
+
+	tmp423a@4c {
+		compatible = "ti,tmp423";
+		reg = <0x4c>;
+	};
+
+	ir35221@70 {
+		compatible = "infineon,ir35221";
+		reg = <0x70>;
+	};
+
+	ir35221@71 {
+		compatible = "infineon,ir35221";
+		reg = <0x71>;
+	};
+};
+
+
+&i2c5 {
+	status = "okay";
+
+	tmp423a@4c {
+		compatible = "ti,tmp423";
+		reg = <0x4c>;
+	};
+
+	ir35221@70 {
+		compatible = "infineon,ir35221";
+		reg = <0x70>;
+	};
+
+	ir35221@71 {
+		compatible = "infineon,ir35221";
+		reg = <0x71>;
+	};
+};
+
+&i2c9 {
+	status = "okay";
+
+	tmp275@4a {
+		compatible = "ti,tmp275";
+		reg = <0x4a>;
+	};
+};
+
+&i2c10 {
+	/* MUX
+	 *   -> PCIe Slot 3
+	 *   -> PCIe Slot 4
+	 */
+	status = "okay";
+};
+
+&i2c11 {
+	status = "okay";
+
+	pca9552: pca9552@60 {
+		compatible = "nxp,pca9552";
+		reg = <0x60>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		gpio-line-names = "PS_SMBUS_RESET_N", "APSS_RESET_N",
+			"GPU0_TH_OVERT_N_BUFF",	"GPU1_TH_OVERT_N_BUFF",
+			"GPU2_TH_OVERT_N_BUFF", "GPU3_TH_OVERT_N_BUFF",
+			"GPU4_TH_OVERT_N_BUFF",	"GPU5_TH_OVERT_N_BUFF",
+			"GPU0_PWR_GOOD_BUFF", "GPU1_PWR_GOOD_BUFF",
+			"GPU2_PWR_GOOD_BUFF", "GPU3_PWR_GOOD_BUFF",
+			"GPU4_PWR_GOOD_BUFF", "GPU5_PWR_GOOD_BUFF",
+			"12V_BREAKER_FLT_N", "THROTTLE_UNLATCHED_N";
+
+		gpio@0 {
+			reg = <0>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@1 {
+			reg = <1>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@2 {
+			reg = <2>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@3 {
+			reg = <3>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@4 {
+			reg = <4>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@5 {
+			reg = <5>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@6 {
+			reg = <6>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@7 {
+			reg = <7>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@8 {
+			reg = <8>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@9 {
+			reg = <9>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@10 {
+			reg = <10>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@11 {
+			reg = <11>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@12 {
+			reg = <12>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@13 {
+			reg = <13>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@14 {
+			reg = <14>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+
+		gpio@15 {
+			reg = <15>;
+			type = <PCA955X_TYPE_GPIO>;
+		};
+	};
+
+	rtc@32 {
+		compatible = "epson,rx8900";
+		reg = <0x32>;
+	};
+
+	eeprom@51 {
+		compatible = "atmel,24c64";
+		reg = <0x51>;
+	};
+
+	ucd90160@64 {
+		compatible = "ti,ucd90160";
+		reg = <0x64>;
+	};
+};
+
+&i2c12 {
+	status = "okay";
+};
+
+&i2c13 {
+	status = "okay";
+};
+
+// contents of ibm-power9-dual.dtsi below
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright 2018 IBM Corp
+
+&fsi {
+	cfam@0,0 {
+		reg = <0 0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		chip-id = <0>;
+
+		scom@1000 {
+			compatible = "ibm,fsi2pib";
+			reg = <0x1000 0x400>;
+		};
+
+		i2c@1800 {
+			compatible = "ibm,fsi-i2c-master";
+			reg = <0x1800 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			cfam0_i2c0: i2c-bus@0 {
+				reg = <0>;
+			};
+
+			cfam0_i2c1: i2c-bus@1 {
+				reg = <1>;
+			};
+
+			cfam0_i2c2: i2c-bus@2 {
+				reg = <2>;
+			};
+
+			cfam0_i2c3: i2c-bus@3 {
+				reg = <3>;
+			};
+
+			cfam0_i2c4: i2c-bus@4 {
+				reg = <4>;
+			};
+
+			cfam0_i2c5: i2c-bus@5 {
+				reg = <5>;
+			};
+
+			cfam0_i2c6: i2c-bus@6 {
+				reg = <6>;
+			};
+
+			cfam0_i2c7: i2c-bus@7 {
+				reg = <7>;
+			};
+
+			cfam0_i2c8: i2c-bus@8 {
+				reg = <8>;
+			};
+
+			cfam0_i2c9: i2c-bus@9 {
+				reg = <9>;
+			};
+
+			cfam0_i2c10: i2c-bus@a {
+				reg = <10>;
+			};
+
+			cfam0_i2c11: i2c-bus@b {
+				reg = <11>;
+			};
+
+			cfam0_i2c12: i2c-bus@c {
+				reg = <12>;
+			};
+
+			cfam0_i2c13: i2c-bus@d {
+				reg = <13>;
+			};
+
+			cfam0_i2c14: i2c-bus@e {
+				reg = <14>;
+			};
+		};
+
+		sbefifo@2400 {
+			compatible = "ibm,p9-sbefifo";
+			reg = <0x2400 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			fsi_occ0: occ@1 {
+				compatible = "ibm,p9-occ";
+			};
+		};
+
+		fsi_hub0: hub@3400 {
+			compatible = "fsi-master-hub";
+			reg = <0x3400 0x400>;
+			#address-cells = <2>;
+			#size-cells = <0>;
+
+			no-scan-on-init;
+		};
+	};
+};
+
+&fsi_hub0 {
+	cfam@1,0 {
+		reg = <1 0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		chip-id = <1>;
+
+		scom@1000 {
+			compatible = "ibm,fsi2pib";
+			reg = <0x1000 0x400>;
+		};
+
+		i2c@1800 {
+			compatible = "ibm,fsi-i2c-master";
+			reg = <0x1800 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			cfam1_i2c0: i2c-bus@0 {
+				reg = <0>;
+			};
+
+			cfam1_i2c1: i2c-bus@1 {
+				reg = <1>;
+			};
+
+			cfam1_i2c2: i2c-bus@2 {
+				reg = <2>;
+			};
+
+			cfam1_i2c3: i2c-bus@3 {
+				reg = <3>;
+			};
+
+			cfam1_i2c4: i2c-bus@4 {
+				reg = <4>;
+			};
+
+			cfam1_i2c5: i2c-bus@5 {
+				reg = <5>;
+			};
+
+			cfam1_i2c6: i2c-bus@6 {
+				reg = <6>;
+			};
+
+			cfam1_i2c7: i2c-bus@7 {
+				reg = <7>;
+			};
+
+			cfam1_i2c8: i2c-bus@8 {
+				reg = <8>;
+			};
+
+			cfam1_i2c9: i2c-bus@9 {
+				reg = <9>;
+			};
+
+			cfam1_i2c10: i2c-bus@a {
+				reg = <10>;
+			};
+
+			cfam1_i2c11: i2c-bus@b {
+				reg = <11>;
+			};
+
+			cfam1_i2c12: i2c-bus@c {
+				reg = <12>;
+			};
+
+			cfam1_i2c13: i2c-bus@d {
+				reg = <13>;
+			};
+
+			cfam1_i2c14: i2c-bus@e {
+				reg = <14>;
+			};
+		};
+
+		sbefifo@2400 {
+			compatible = "ibm,p9-sbefifo";
+			reg = <0x2400 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			fsi_occ1: occ@2 {
+				compatible = "ibm,p9-occ";
+			};
+		};
+
+		fsi_hub1: hub@3400 {
+			compatible = "fsi-master-hub";
+			reg = <0x3400 0x400>;
+			#address-cells = <2>;
+			#size-cells = <0>;
+
+			no-scan-on-init;
+		};
+	};
+};
+
+/* Legacy OCC numbering (to get rid of when userspace is fixed) */
+&fsi_occ0 {
+	reg = <1>;
+};
+
+&fsi_occ1 {
+	reg = <2>;
+};
+
+/ {
+	aliases {
+		i2c100 = &cfam0_i2c0;
+		i2c101 = &cfam0_i2c1;
+		i2c102 = &cfam0_i2c2;
+		i2c103 = &cfam0_i2c3;
+		i2c104 = &cfam0_i2c4;
+		i2c105 = &cfam0_i2c5;
+		i2c106 = &cfam0_i2c6;
+		i2c107 = &cfam0_i2c7;
+		i2c108 = &cfam0_i2c8;
+		i2c109 = &cfam0_i2c9;
+		i2c110 = &cfam0_i2c10;
+		i2c111 = &cfam0_i2c11;
+		i2c112 = &cfam0_i2c12;
+		i2c113 = &cfam0_i2c13;
+		i2c114 = &cfam0_i2c14;
+		i2c200 = &cfam1_i2c0;
+		i2c201 = &cfam1_i2c1;
+		i2c202 = &cfam1_i2c2;
+		i2c203 = &cfam1_i2c3;
+		i2c204 = &cfam1_i2c4;
+		i2c205 = &cfam1_i2c5;
+		i2c206 = &cfam1_i2c6;
+		i2c207 = &cfam1_i2c7;
+		i2c208 = &cfam1_i2c8;
+		i2c209 = &cfam1_i2c9;
+		i2c210 = &cfam1_i2c10;
+		i2c211 = &cfam1_i2c11;
+		i2c212 = &cfam1_i2c12;
+		i2c213 = &cfam1_i2c13;
+		i2c214 = &cfam1_i2c14;
+	};
+};
