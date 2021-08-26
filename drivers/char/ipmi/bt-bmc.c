@@ -446,6 +446,21 @@ static const struct bt_bmc_ops aspeed_bt_bmc_ops = {
 	.enable_bt = aspeed_enable_bt,
 };
 
+static int microwatt_bt_bmc_config_irq(struct bt_bmc *bt_bmc,
+			     struct platform_device *pdev)
+{
+	return -1;
+}
+
+static void microwatt_enable_bt(struct bt_bmc *bt_bmc)
+{
+}
+
+static const struct bt_bmc_ops microwatt_bt_bmc_ops = {
+	.config_irq = microwatt_bt_bmc_config_irq,
+	.enable_bt = microwatt_enable_bt,
+};
+
 static int bt_bmc_probe(struct platform_device *pdev)
 {
 	struct bt_bmc *bt_bmc;
@@ -530,6 +545,7 @@ static int bt_bmc_remove(struct platform_device *pdev)
 static const struct of_device_id bt_bmc_match[] = {
 	{ .compatible = "aspeed,ast2400-ibt-bmc", .data = &aspeed_bt_bmc_ops },
 	{ .compatible = "aspeed,ast2500-ibt-bmc", .data = &aspeed_bt_bmc_ops },
+	{ .compatible = "ibm,microwatt-ibt-bmc", .data = &microwatt_bt_bmc_ops },
 	{ },
 };
 
