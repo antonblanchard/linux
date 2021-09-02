@@ -41,7 +41,7 @@
 #define   BT_CR2_IRQ_HBUSY	0x40
 #define ASPEED_BT_CR3	0xc
 
-#define BT_CTRL		0x10
+#define BT_CTRL		0x0
 #define   BT_CTRL_B_BUSY		0x80
 #define   BT_CTRL_H_BUSY		0x40
 #define   BT_CTRL_OEM0			0x20
@@ -50,8 +50,8 @@
 #define   BT_CTRL_H2B_ATN		0x04
 #define   BT_CTRL_CLR_RD_PTR		0x02
 #define   BT_CTRL_CLR_WR_PTR		0x01
-#define BT_BMC2HOST	0x14
-#define BT_INTMASK	0x18
+#define BT_BMC2HOST	0x4
+#define BT_INTMASK	0x8
 #define   BT_INTMASK_B2H_IRQEN		0x01
 #define   BT_INTMASK_B2H_IRQ		0x02
 #define   BT_INTMASK_BMC_HWRST		0x80
