@@ -160,7 +160,7 @@ static int send_cmd(struct litex_mmc_host *host, u8 cmd, u32 arg,
 		reg = host->sdcore + LITEX_MMC_SDCORE_CMDRSP_OFF;
 		for (i = 0; i < 4; i++) {
 			host->resp[i] = litex_read32(reg);
-			reg += LITEX_SUBREG_ALIGN;
+			reg += 0x4;
 		}
 	}
 
